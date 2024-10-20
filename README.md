@@ -10,7 +10,7 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 
 The NSD dataset website: http://naturalscenesdataset.org/
 
-2. Extraction of nsdgeneral and spreading from raw fMRI
+2. Extraction of nsdgeneral and spreading from raw fMRI.
 ```python
 python fmri2nsd.py --subject subj01
 ```
