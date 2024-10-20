@@ -6,6 +6,7 @@ import torch
 import torch.backends.cudnn as cudnn
 import json
 import os
+import random
 
 from pathlib import Path
 
@@ -18,12 +19,12 @@ from timm.utils import NativeScaler, get_state_dict, ModelEma
 from functools import partial
 import torch.nn as nn
 
-
 from engine import train_one_epoch, evaluate
 from losses import DistillationLoss
 from samplers import RASampler
 import utils
-from gfnet import GFNet, GFNetPyramid
+from gfnet1d import GFNet1d, GFNet1dPyramid, BrainMLP, GFNet1dMLP
+from FreDenoise import FreBrain
 
 import warnings
 warnings.filterwarnings("ignore", message="Argument interpolation should be")
@@ -38,6 +39,8 @@ class fMRIimageDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.x.shape[0]
+
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
@@ -70,7 +73,7 @@ def get_args_parser():
                         help='Clip gradient norm (default: None, no clipping)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.9)')
-    parser.add_argument('--weight-decay', type=float, default=0.1,
+    parser.add_argument('--weight-decay', type=float, default=0.05,
                         help='weight decay (default: 0.05)')
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
@@ -181,11 +184,14 @@ def get_args_parser():
 
     # NSD dataset and subject information
     parser.add_argument('--subject', default='subj01', help='subject number')
-    parser.add_argument('--roi', default='early', help='Brain ROI')
+    parser.add_argument('--roi', default='early',nargs="*", help='Brain ROI')
     parser.add_argument('--fmridir', default='../../testfmri', help='preprocessed fMRI file path')
     parser.add_argument('--featdir', default='../../nsdfeat/subjfeat', help='Image embeddings files from CLIP')
-    parser.add_argument('--textdir', default='../../nsdfeat/subjfeat', help='Caption text embeddings files from CLIP')
+    parser.add_argument('--kernel', default=10, type=int, help='kernel size')
+    parser.add_argument('--stride', default=7, type=int, help='stride length')
+    parser.add_argument('--percent', default=1.0, type=float, help='data percent')
     return parser
+
 
 def main(args):
     utils.init_distributed_mode(args)
@@ -198,53 +204,123 @@ def main(args):
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
+    seed = args.seed
     torch.manual_seed(seed)
     np.random.seed(seed)
-    # random.seed(seed)
+    random.seed(seed)
 
-    cudnn.benchmark = True
+    cudnn.benchmark = False
 
     #load fMRI data and image features
     subject=args.subject
     roi=args.roi
-    target='init_latent'
+    kernel_size=args.kernel
+    stride=args.stride
     fmridir =args.fmridir
-    imagedir =args.featdir
-    textdir= args.textdir
+    featdir =args.featdir
+    percent = args.percent
 
 
-    X = torch.load(f'{fmridir}/{subject}/{subject}_{roi}_betas_tr')
-    X_te = torch.load(f'{fmridir}/{subject}/{subject}_{roi}_betas_ave_te')
+    X = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
+    X_te = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
+    X = torch.tensor(X)
+    X_te=torch.tensor(X_te)
+ 
+    if args.arch == 'gfnet-image':
+        Y = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_tr.pth')
+        Y_te = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_te.pth')
+        #Y = np.load(f'/home/students/gzx_4090_1/GOD/{subject}/image_tr.npy')
+        #Y_te = np.load(f'/home/students/gzx_4090_1/GOD/{subject}/image_te.npy')
+    elif args.arch == 'gfnet-text':
+        Y = np.load(f'{featdir}/text_clip_tr.npy').astype("float32")
+        Y_te = np.load(f'{featdir}/text_clip_ave_te.npy').astype("float32")
+    else:
+        raise NotImplementedError
 
     
-    Y = np.load(f'{imagedir}/image_clip_tr.npy').astype("float32")
-    Y_te = np.load(f'{imagedir}/image_clip_ave_te.npy').astype("float32")
 
-    Y=torch.tensor(Y)
-    Y_te=torch.tensor(Y_te)
+    if percent<1.0:
+        total_size = X.shape[0]
+        indices = torch.randperm(total_size)
+        numbers = int(total_size * percent)
+        indices = indices[0:numbers]
+        X = X[indices]
+        Y = Y[indices]
+    
     train_dataset = fMRIimageDataset(X, Y)
-    test_dataset = fMRIimageDataset(X_te, Y_te)
+    test_dataset1 = fMRIimageDataset(X_te, Y_te)
 
-    sampler_train = torch.utils.data.RandomSampler(train_dataset)
-    sampler_val = torch.utils.data.SequentialSampler(test_dataset)
+
+    print(f'Now Train model for... {subject}:  {roi}')
+    print(f' X: {X.shape}, Y :{Y.shape}')
+
+    #sampler_train = torch.utils.data.RandomSampler(train_dataset)
+    #sampler_val = torch.utils.data.RandomSampler(test_dataset)
+
+    if True:  # args.distributed:
+        num_tasks = utils.get_world_size()
+        global_rank = utils.get_rank()
+        if args.repeated_aug:
+            sampler_train = RASampler(
+                train_dataset, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+        else:
+            sampler_train = torch.utils.data.DistributedSampler(
+                train_dataset, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+
+        sampler_val1 = torch.utils.data.SequentialSampler(test_dataset1)
+        '''
+        sampler_val2 = torch.utils.data.SequentialSampler(test_dataset2)
+        sampler_val5 = torch.utils.data.SequentialSampler(test_dataset5)
+        sampler_val7 = torch.utils.data.SequentialSampler(test_dataset7)
+        '''
+    else:
+        sampler_train = torch.utils.data.RandomSampler(train_dataset)
+        
 
     data_loader_train = torch.utils.data.DataLoader(
         train_dataset, sampler=sampler_train,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=True,
+        drop_last=False,
     )
 
-    data_loader_val = torch.utils.data.DataLoader(
-        test_dataset, sampler=sampler_val,
+    data_loader_val1 = torch.utils.data.DataLoader(
+        test_dataset1, sampler=sampler_val1,
+        #batch_size=int(1.5 * args.batch_size),
+        batch_size=300,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=True,
+    )
+    '''
+    data_loader_val2 = torch.utils.data.DataLoader(
+        test_dataset2, sampler=sampler_val2,
         #batch_size=int(1.5 * args.batch_size),
         batch_size=982,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=False
+        drop_last=False,
     )
+    data_loader_val5 = torch.utils.data.DataLoader(
+        test_dataset5, sampler=sampler_val5,
+        #batch_size=int(1.5 * args.batch_size),
+        batch_size=982,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=False,
+    )
+    data_loader_val7 = torch.utils.data.DataLoader(
+        test_dataset7, sampler=sampler_val7,
+        #batch_size=int(1.5 * args.batch_size),
+        batch_size=982,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=False,
+    )
+    '''
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
@@ -260,22 +336,69 @@ def main(args):
     print(f"Creating model: {args.arch}")
 
     if args.arch == 'gfnet-image':
-        model = GFNet(roi_voxel=[36,25,30],cube_size=[6,5,5], in_chans=1, image_features=512, embed_dim=256, depth=12,
+        
+        '''
+        model = GFNet1d(input_size=X.shape[1], kernel_size=kernel_size, stride=stride, in_chans=1, features=768, embed_dim=257, depth=12,
              mlp_ratio=4., representation_size=None, uniform_drop=False,
              drop_rate=0.1, drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
              dropcls=0
         )
+        
+        model = GFNet1dPyramid(input_size=X.shape[1], kernel_size=kernel_size, stride=stride, in_chans=1, features=512, embed_dim=[257], depth=[18],
+            mlp_ratio=[4, 4, 4, 4], representation_size=None, uniform_drop=False,
+            drop_rate=0.1, drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
+            dropcls=0
+            )
+        '''
+        
+        
+        
+        
+        model = GFNet1dPyramid(input_size=X.shape[-1], kernel_size=kernel_size, stride=stride, in_chans=1, features=768, embed_dim=[512,256,128,257], depth=[2,10,2,4],
+            mlp_ratio=[4, 4, 4, 4], representation_size=None, uniform_drop=False,
+            drop_rate=0.1, drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
+            dropcls=0
+            )
+        
+        
+        
+        '''
+        model = GFNet1dMLP(input_size=X.shape[-1], kernel_size=kernel_size, stride=stride, in_chans=1, features=768, embed_dim=[257], depth=[1],
+            mlp_ratio=[4, 4, 4, 4], representation_size=None, uniform_drop=False,
+            drop_rate=0.1, drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
+            dropcls=0
+        )
+        '''
+        #model = FreBrain(X.shape[-1], 257)
+        
+        
+        #model = BrainMLP(out_dim =257*768,in_dim =X.shape[-1],clip_size =768,h=4096)
+
+        
+        
+        
+        
     elif args.arch == 'gfnet-text':
-        model = GFNet(roi_voxel=[66,51,30],cube_size=[8,7,5], in_chans=1, image_features=512, embed_dim=512, depth=19,
+        '''
+        model = GFNet1d(input_size=X.shape[1], kernel_size=kernel_size, stride=stride, in_chans=1, features=512, embed_dim=256, depth=12,
              mlp_ratio=4., representation_size=None, uniform_drop=False,
-             drop_rate=0., drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
+             drop_rate=0.1, drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
              dropcls=0
         )
+        
+        model = GFNet1dPyramid(input_size=X.shape[-1], kernel_size=kernel_size, stride=stride, in_chans=1, features=768, embed_dim=[1024,512,512,50], depth=[2,10,4,2],
+            mlp_ratio=[4, 4, 4, 4], representation_size=None, uniform_drop=False,
+            drop_rate=0.1, drop_path_rate=0.15, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
+            dropcls=0
+            )
+        '''
+        
 
     else:
         raise NotImplementedError
 
     
+
     model.to(device)
 
     model_ema = None
@@ -288,26 +411,20 @@ def main(args):
             resume='')
 
     model_without_ddp = model
+    if args.distributed:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
-    linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
+    #linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 512.0
+    linear_scaled_lr = args.lr * 600 * utils.get_world_size() / 512.0
     args.lr = linear_scaled_lr
-    #args.lr=4.5e-5
     optimizer = create_optimizer(args, model_without_ddp)
+
     loss_scaler = NativeScaler()
 
     lr_scheduler, _ = create_scheduler(args, optimizer)
-
-    criterion = LabelSmoothingCrossEntropy()
-
-    if args.mixup > 0.:
-        # smoothing is handled with mixup label transform
-        criterion = SoftTargetCrossEntropy()
-    elif args.smoothing:
-        criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
-    else:
-        criterion = torch.nn.CrossEntropyLoss()
 
     teacher_model = None
     if args.distillation_type != 'none':
@@ -331,10 +448,7 @@ def main(args):
     # wrap the criterion in our custom DistillationLoss, which
     # just dispatches to the original criterion if args.distillation_type is 'none'
 
-    criterion = DistillationLoss(
-        criterion, teacher_model, args.distillation_type, args.distillation_alpha, args.distillation_tau
-    )
-    criterion ==nn.MSELoss()
+
     output_dir = Path(args.output_dir)
     if args.resume:
         if args.resume.startswith('https'):
@@ -360,31 +474,69 @@ def main(args):
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
-    #lr=4.5e-5
-    min_test=999
-    for epoch in range(args.start_epoch, args.epochs):
-        
+    max_test1=-9999
+    max_test2=0
+    max_test5=0
+    max_test7=0
 
+    for epoch in range(args.start_epoch, args.epochs):
+
+        if args.distributed:
+            data_loader_train.sampler.set_epoch(epoch)
+        
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train,
+            model, data_loader_train,
             optimizer, device, epoch, loss_scaler,
             args.clip_grad, model_ema, mixup_fn=None,
             set_training_mode=args.finetune == ''  # keep in eval mode during finetuning
         )
 
         lr_scheduler.step(epoch)
-        test_stats = evaluate(data_loader_val, model, device)*982/Y_te.shape[0]
+        '''
+        if epoch <=6:
+            lr_scheduler.step(epoch)
+        if epoch>0  and epoch % 200 == 0 :
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = param_group['lr']*0.5
+        '''
+        test_stats1, loss_mlp = evaluate(data_loader_val1, model, device)
+        '''
+        test_stats2 = evaluate(data_loader_val2, model, device)
+        test_stats5 = evaluate(data_loader_val5, model, device)
+        test_stats7 = evaluate(data_loader_val7, model, device)
+        '''
 
 
-        if test_stats<min_test:
-            min_test=test_stats
-            torch.save(model.state_dict(),os.path.join(output_dir,f'GFNet-besttest.pth'))
-            min_epoch=epoch
+        if test_stats1>=max_test1:
+            max_test1=test_stats1
+            torch.save(model.state_dict(),os.path.join(output_dir,f'GFNet-besttest-subj01.pth'))
+            max_epoch1=epoch
+        
+        '''
+        if test_stats2>=max_test2:
+            max_test2=test_stats2
+            torch.save(model.state_dict(),os.path.join(output_dir,f'GFNet-besttest-subj02.pth'))
+            max_epoch2=epoch
+
+        if test_stats5>=max_test5:
+            max_test5=test_stats5
+            torch.save(model.state_dict(),os.path.join(output_dir,f'GFNet-besttest-subj05.pth'))
+            max_epoch5=epoch
+
+        if test_stats7>=max_test7:
+            max_test7=test_stats7
+            torch.save(model.state_dict(),os.path.join(output_dir,f'GFNet-besttest-subj07.pth'))
+            max_epoch7=epoch
+        '''
+        '''
+        if epoch<31:
+            torch.save(model.state_dict(),os.path.join(output_dir,f'GFNet-{epoch}.pth'))
+        '''
             
 
         lr=train_stats['lr']
         loss=train_stats['loss']
-        log_stats = f'train_lr:{lr},train_loss:{loss},epoch:{epoch},n_parameters:{n_parameters},TestLoss:{test_stats},epochmin:{min_epoch}'
+        log_stats = f'train_lr:{lr},train_loss:{loss:.5f},epoch:{epoch},n_parameters:{n_parameters},Top1:{test_stats1/982*100:.2f}%, mse:{loss_mlp:.4f}, epochmax:{max_epoch1}'
 
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
