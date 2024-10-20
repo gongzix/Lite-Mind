@@ -18,7 +18,7 @@ python src/fmri2nsd.py --subject subj01
 python src/img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <your image feature save path>
 ```
 ## Train
-Training can be done on a single RTX 4090.
+Training can be done on a single Tesla V100 32GB GPU.
 ```python
 python src/train_litemind.py --device cuda:0 --patch-size 450 --batch-size 1000 --epochs 1500 --output_dir <the path you want to save your model on> --seed 42 --lr 1e-3 --featdir <your nsdgeneral path>  --weight-decay 0.1 --fmridir ./nsd_fsverage --subject subj01
 ```
