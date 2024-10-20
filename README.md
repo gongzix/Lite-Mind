@@ -6,9 +6,7 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 ![model](assets/model.png)
 
 ## Data Preprocessing
-1. Download nsddata, nsddata_betas, and nsddata_stimuli from NSD and place them under the nsd directory. 
-
-The NSD dataset website: http://naturalscenesdataset.org/
+1. Download nsddata, nsddata_betas, and nsddata_stimuli from NSD (http://naturalscenesdataset.org/) and place them under the nsd directory. 
 
 2. Extraction of nsdgeneral roi from raw fMRI.
 ```python
