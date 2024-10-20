@@ -9,7 +9,13 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 1. Download nsddata, nsddata_betas, and nsddata_stimuli from NSD and place them under the nsd directory. 
 
 The NSD dataset website: http://naturalscenesdataset.org/
+
 2. Extraction of nsdgeneral and spreading from raw fMRI
 ```python
-python fmri2feat.py --subject subj01
+python fmri2nsdgeneral.py --subject subj01
+```
+
+3. Extraction of features for the corresponding COCO images.
+```python
+python img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <your image feature save path>
 ```
