@@ -15,7 +15,7 @@ The NSD dataset website: http://naturalscenesdataset.org/
 python fmri2nsd.py --subject subj01
 ```
 
-3. Extraction of features for the corresponding COCO images.
+3. Extraction of features for the corresponding COCO images (You can also choose to extract features at training time for data enhancement).
 ```python
 python img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <your image feature save path>
 ```
