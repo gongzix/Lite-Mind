@@ -12,7 +12,7 @@ The NSD dataset website: http://naturalscenesdataset.org/
 
 2. Extraction of nsdgeneral and spreading from raw fMRI
 ```python
-python fmri2nsdgeneral.py --subject subj01
+python fmri2nsd.py --subject subj01
 ```
 
 3. Extraction of features for the corresponding COCO images.
