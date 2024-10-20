@@ -1,4 +1,4 @@
-# Lite-Mind
+# <center>Lite-Mind</center>
 
 This is the official code for the paper "Lite-Mind:Towards Efficient and Robust Brain Representation Learning"
 
