@@ -4,6 +4,10 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 
 
 ![model](assets/model.png)
+## Installation
+```python
+pip install -r requirement.txt
+```
 
 ## Data Preprocessing
 1. Download `nsddata`, `nsddata_betas`, and `nsddata_stimuli` from NSD (http://naturalscenesdataset.org/) and place them under the nsd directory. 
