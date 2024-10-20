@@ -19,3 +19,4 @@ python src/img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <you
 ```
 
 ![test_result](assets/test_result.png)
+![laion5b](assets/laion5b.png)
