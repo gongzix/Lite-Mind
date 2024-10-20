@@ -53,3 +53,4 @@ https://github.com/lucidrains/DALLE2-pytorch
 
 https://github.com/tknapen/nsd_access
 
+https://github.com/MedARC-AI/fMRI-reconstruction-NSD
