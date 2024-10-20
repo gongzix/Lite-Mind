@@ -43,3 +43,13 @@ python src/train_prior.py
 python src/laion5b.py
 ```
 ![laion5b](assets/laion5b.png)
+
+## Acknowledgement
+Our codebase builds on these repositories. We would like to thank the authors.
+
+https://github.com/aikunyi/FreTS
+
+https://github.com/lucidrains/DALLE2-pytorch
+
+https://github.com/tknapen/nsd_access
+
