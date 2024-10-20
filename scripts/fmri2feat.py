@@ -16,10 +16,10 @@ def main():
 
     opt = parser.parse_args()
     subject = opt.subject
-    atlasname = 'streams'
+    atlasname = 'nsdgeneral'
     
-    nsda = NSDAccess('/home/students/gzx_4090_1/nsd/')
-    nsd_expdesign = scipy.io.loadmat('/home/students/gzx_4090_1/nsd/nsddata/experiments/nsd/nsd_expdesign.mat')
+    nsda = NSDAccess('./nsd/')
+    nsd_expdesign = scipy.io.loadmat('./nsd/nsd_expdesign.mat')
 
     # Note that most of nsd_expdesign indices are 1-base index!
     # This is why subtracting 1
@@ -36,7 +36,7 @@ def main():
     stims_unique = behs['73KID'].unique() - 1
     stims_all = behs['73KID'] - 1
 
-    savedir = f'../../testfmri/{subject}/'
+    savedir = f'./fmrifeat/{subject}/'
     os.makedirs(savedir, exist_ok=True)
 
     if not os.path.exists(f'{savedir}/{subject}_stims.npy'):
@@ -64,19 +64,12 @@ def main():
             print('SKIP')
             continue
         
-        region=np.argwhere(atlas[0]==val)
-        a0,a1,b0,b1,c0,c1=min(region[:,0]),max(region[:,0]),min(region[:,1]),max(region[:,1]),min(region[:,2]),max(region[:,2])
-        betas_roi=betas_all[:,a0:a1+1,b0:b1+1,c0:c1+1]
-        atlas_roi=atlas[0][a0:a1+1,b0:b1+1,c0:c1+1]
-        mask=atlas_roi!=val
-        betas_roi[:,mask]=0
-        '''
+        
         else:
             betas_roi = betas_all[:,atlas[0].transpose([2,1,0])==val]
 
         print(betas_roi.shape)
         
-        '''
         # Averaging for each stimulus
         betas_roi_ave = []
         for stim in stims_unique:
