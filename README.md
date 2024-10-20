@@ -6,3 +6,5 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 ![model](assets/model.png)
 
 ## Data Preprocessing
+1. Download nsddata, nsddata_betas, and nsddata_stimuli from NSD and place them under the nsd directory. The NSD dataset website is http://naturalscenesdataset.org/
+2. 
