@@ -10,10 +10,12 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 
 2. Extraction of nsdgeneral roi from raw fMRI.
 ```python
-python fmri2nsd.py --subject subj01
+python src/fmri2nsd.py --subject subj01
 ```
 
 3. Extraction of features for the corresponding COCO images (Features can also be extracted at training time for data augmentation).
 ```python
-python img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <your image feature save path>
+python src/img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <your image feature save path>
 ```
+
+![test_result](assets/test_result.png)
