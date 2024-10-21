@@ -34,6 +34,7 @@ class fMRIimageDataset(torch.utils.data.Dataset):
 
 
 def get_args_parser():
+    parser = argparse.ArgumentParser('Lite-Mind training script', add_help=False)
     parser.add_argument('--batch-size', default=64, type=int)
     parser.add_argument('--epochs', default=300, type=int)
 
@@ -111,7 +112,7 @@ def get_args_parser():
     parser.add_argument('--subject', default='subj01', help='subject number')
     parser.add_argument('--patch_size', default=450, type=int, help='patch_size')
     parser.add_argument('--percent', default=1.0, type=float, help='data percent')
-    parser.add_argument("--cls_only",action=argparse.BooleanOptionalAction,default=False,help="if not using laion5b")
+    parser.add_argument("--cls_only",action="store_true",help="if not using laion5b")
     return parser
 
 
@@ -135,6 +136,7 @@ def main(args):
     patch_size=args.patch_size
 
     percent = args.percent
+    cls_only = args.cls_only
 
 
     X = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
@@ -156,13 +158,13 @@ def main(args):
     
     if cls_only:
         Y = Y[:,:768]
-        Y_te = Y_te[:,768]
+        Y_te = Y_te[:,:768]
     train_dataset = fMRIimageDataset(X, Y)
     test_dataset = fMRIimageDataset(X_te, Y_te)
 
 
     print(f'Now Train model for... {subject}')
-    print(f' X: {X.shape}, Y :{Y.shape}')
+    print(f' X: {X.shape}, Y :{Y.shape}, X_te: {X_te.shape}, Y_te: {Y_te.shape}')
 
 
     sampler_train = torch.utils.data.RandomSampler(train_dataset)
@@ -187,9 +189,12 @@ def main(args):
     )
 
 
-        
-    model = DFTBackbone(input_size=X.shape[-1], patch_size=patch_size, embed_dim=768, num_tokens=[512,256,128,257], depth=[2,10,2,4],
-        mlp_ratio=[4, 4, 4, 4], drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6), num_filters = 2)
+    if cls_only:
+        model = DFTBackbone(input_size=X.shape[-1], patch_size=patch_size, embed_dim=768, num_tokens=[512,256,128,50], depth=[2,2,2,2],
+        mlp_ratio=[4, 4, 4, 4], drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6), num_filters = 2, cls_only = cls_only)
+    else:
+        model = DFTBackbone(input_size=X.shape[-1], patch_size=patch_size, embed_dim=768, num_tokens=[512,256,128,257], depth=[2,10,2,4],
+        mlp_ratio=[4, 4, 4, 4], drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6), num_filters = 2, cls_only = cls_only)
 
     model.to(device)
 
@@ -229,8 +234,7 @@ def main(args):
         train_stats = train_one_epoch(
             model, data_loader_train,
             optimizer, device, epoch, 
-            args.clip_grad, model_ema, 
-            set_training_mode=args.finetune == ''
+            model_ema
         )
 
         lr_scheduler.step(epoch)
@@ -250,8 +254,12 @@ def main(args):
         log_stats = f'train_lr:{lr},train_loss:{loss:.5f},epoch:{epoch},n_parameters:{n_parameters},Top1:{test_stats/982*100:.2f}%, epochmax:{max_epoch}'
 
         if args.output_dir and utils.is_main_process():
-            with (output_dir / f"{subject}_log.txt").open("a") as f:
-                f.write(log_stats+ "\n")
+            if cls_only:
+                with (output_dir / f"{subject}_cls_log.txt").open("a") as f:
+                    f.write(log_stats+ "\n")
+            else:
+                with (output_dir / f"{subject}_log.txt").open("a") as f:
+                    f.write(log_stats+ "\n")
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
