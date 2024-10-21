@@ -6,6 +6,8 @@ This is the official code for the paper "Lite-Mind:Towards Efficient and Robust 
 ![all_model](assets/model.png)
 ## Installation
 ```python
+conda create -n litemind python==3.8.5
+conda activate litemind
 pip install -r requirement.txt
 ```
 
