@@ -138,13 +138,13 @@ def main(args):
     percent = args.percent
 
 
-    X = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
-    X_te = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
+    X = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
+    X_te = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
     X = torch.tensor(X)
     X_te=torch.tensor(X_te)
 
-    Y = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_tr.pth')
-    Y_te = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_te.pth')
+    Y = torch.load(f'./imgfeat/{subject}_tr.pth')
+    Y_te = torch.load(f'./imgfeat/{subject}_te.pth')
     
 
     if percent<1.0:
