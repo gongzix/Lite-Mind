@@ -33,13 +33,6 @@ def main():
     )
 
     parser.add_argument(
-        "--model",
-        type=str,
-        default='',
-        help="model pth path",
-    )
-
-    parser.add_argument(
         "--patch_size",
         type=int,
         default=450,
@@ -76,9 +69,9 @@ def main():
 
     
     model.to(device)
-    checkpoint1=torch.load(f'./weight/litemind-{subject}.pth', map_location=device)
+    checkpoint=torch.load(f'./weight/litemind-{subject}.pth', map_location=device)
 
-    model.load_state_dict(checkpoint1)
+    model.load_state_dict(checkpoint)
     model.eval()
     
     preV=[]

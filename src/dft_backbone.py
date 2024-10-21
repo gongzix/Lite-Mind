@@ -29,11 +29,7 @@ class GlobalFilter(nn.Module):
         super().__init__()
         self.num_filters = num_filters
         self.complex_weight = nn.Parameter(torch.randn(num_filters, N//2+1, embed_dim, 2, dtype=torch.float32) * 0.02)
-    
-    def get_cosine_factor(m, M):
-        return torch.cos(
-            torch.tensor(((2*m - 1) * torch.pi) / (2*M))
-        ).item()
+
 
     def forward(self, x):
 

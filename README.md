@@ -24,7 +24,7 @@ python src/img2feat.py --subject subj01 --device 0 --nsddir ./nsd --savedir <you
 ## Train
 Training can be done on a single Tesla V100 32GB GPU.
 ```python
-python src/train_litemind.py --device cuda:0 --patch-size 450 --batch-size 1000 --epochs 1500 --output_dir <the path you want to save your model on> --seed 42 --lr 1e-3 --featdir <your nsdgeneral path>  --weight-decay 0.1 --fmridir ./nsd_fsverage --subject subj01
+python src/train_litemind.py --device cuda:0 --patch-size 450 --batch-size 1000 --epochs 1500 --subject subj01
 ```
 ## Inference and Evaluation on the Test Set
 ```python
@@ -35,7 +35,7 @@ python src/inference_litemind.py --device 0 --subject subj01 --model <your model
 ## Large-Scale LAION-5B Retrieval
 You need to train an extra prior for laion-5b retrieval and only use CLS embeddings. The CLS embeddings for all 5 billion images are available at https://knn.laion.ai/ and can be queried for K-nearest neighbor lookup via the CLIP Retrieval client (https://github.com/rom1504/clip-retrieval).
 ```python
-python src/train_litemind.py --device cuda:0 --patch-size 450 --batch-size 1000 --epochs 1500 --output_dir <the path you want to save your model on> --seed 42 --lr 1e-3 --featdir <your nsdgeneral path>  --weight-decay 0.1 --fmridir ./nsd_fsverage --subject subj01 --cls_only
+python src/train_litemind.py --device cuda:0 --patch-size 450 --batch-size 1000 --epochs 1500 --subject subj01 --cls_only
 python src/train_prior.py
 ```
 **Inference on the LAION-5B dataset**

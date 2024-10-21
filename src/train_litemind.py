@@ -214,7 +214,7 @@ def main(args):
     optimizer = create_optimizer(args, model_without_ddp)
     loss_scaler = NativeScaler()
     lr_scheduler, _ = create_scheduler(args, optimizer)
-    output_dir = Path(args.output_dir)
+    output_dir = Path('./log/')
 
 
     start_time = time.time()
@@ -236,15 +236,11 @@ def main(args):
 
         test_stats = evaluate(data_loader_val, model, device)
 
-
-
         if test_stats>=max_test:
             max_test=test_stats
-            torch.save(model.state_dict(),os.path.join(output_dir,f'litemind-{subject}.pth'))
+            torch.save(model.state_dict(),os.path.join('./weight/',f'litemind-{subject}.pth'))
             max_epoch=epoch
         
-            
-
         lr=train_stats['lr']
         loss=train_stats['loss']
         log_stats = f'train_lr:{lr},train_loss:{loss:.5f},epoch:{epoch},n_parameters:{n_parameters},Top1:{test_stats/982*100:.2f}%, epochmax:{max_epoch}'
