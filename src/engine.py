@@ -39,9 +39,7 @@ def ContrastiveLoss(fmri,image):
 
 def train_one_epoch(model: torch.nn.Module, 
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
-                    model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None,
-                    set_training_mode=True):
+                    device: torch.device, epoch: int, model_ema: Optional[ModelEma] = None, set_training_mode = True):
 
     model.train(set_training_mode)
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -59,8 +57,6 @@ def train_one_epoch(model: torch.nn.Module,
         loss_value = loss.item()
         
         if not math.isfinite(loss_value):
-            optimizer.zero_grad()
-            continue
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
         
@@ -72,8 +68,6 @@ def train_one_epoch(model: torch.nn.Module,
         torch.cuda.synchronize(device)
         if model_ema is not None:
             model_ema.update(model)
-
-        
 
         metric_logger.update(loss=loss_value)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])

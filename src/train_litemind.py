@@ -34,7 +34,6 @@ class fMRIimageDataset(torch.utils.data.Dataset):
 
 
 def get_args_parser():
-    parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=64, type=int)
     parser.add_argument('--epochs', default=300, type=int)
 
@@ -110,10 +109,9 @@ def get_args_parser():
 
     # NSD dataset and subject information
     parser.add_argument('--subject', default='subj01', help='subject number')
-    parser.add_argument('--fmridir', default='../../testfmri', help='preprocessed fMRI file path')
-    parser.add_argument('--featdir', default='../../nsdfeat/subjfeat', help='Image embeddings files from CLIP')
     parser.add_argument('--patch_size', default=450, type=int, help='patch_size')
     parser.add_argument('--percent', default=1.0, type=float, help='data percent')
+    parser.add_argument("--cls_only",action=argparse.BooleanOptionalAction,default=False,help="if not using laion5b")
     return parser
 
 
@@ -139,13 +137,13 @@ def main(args):
     percent = args.percent
 
 
-    X = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
-    X_te = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
+    X = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
+    X_te = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
     X = torch.tensor(X)
     X_te=torch.tensor(X_te)
 
-    Y = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_tr.pth')
-    Y_te = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_te.pth')
+    Y = torch.load(f'./imgfeat/{subject}_tr.pth')
+    Y_te = torch.load(f'./imgfeat/{subject}_te.pth')
     
 
     if percent<1.0:
@@ -156,6 +154,9 @@ def main(args):
         X = X[indices]
         Y = Y[indices]
     
+    if cls_only:
+        Y = Y[:,:768]
+        Y_te = Y_te[:,768]
     train_dataset = fMRIimageDataset(X, Y)
     test_dataset = fMRIimageDataset(X_te, Y_te)
 
@@ -227,9 +228,9 @@ def main(args):
         
         train_stats = train_one_epoch(
             model, data_loader_train,
-            optimizer, device, epoch, loss_scaler,
-            args.clip_grad, model_ema, mixup_fn=None,
-            set_training_mode=args.finetune == '' 
+            optimizer, device, epoch, 
+            args.clip_grad, model_ema, 
+            set_training_mode=args.finetune == ''
         )
 
         lr_scheduler.step(epoch)
@@ -238,7 +239,10 @@ def main(args):
 
         if test_stats>=max_test:
             max_test=test_stats
-            torch.save(model.state_dict(),os.path.join('./weight/',f'litemind-{subject}.pth'))
+            if cls_only:
+                torch.save(model.state_dict(),os.path.join('./weight/',f'litemind-{subject}-cls.pth'))
+            else:
+                torch.save(model.state_dict(),os.path.join('./weight/',f'litemind-{subject}.pth'))
             max_epoch=epoch
         
         lr=train_stats['lr']
