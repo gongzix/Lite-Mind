@@ -56,7 +56,7 @@ def get_args_parser():
     # Learning rate schedule parameters
     parser.add_argument('--sched', default='cosine', type=str, metavar='SCHEDULER',
                         help='LR scheduler (default: "cosine"')
-    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate (default: 5e-4)')
     parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
                         help='learning rate noise on/off epoch percentages')
@@ -139,13 +139,13 @@ def main(args):
     percent = args.percent
 
 
-    X = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
-    X_te = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
+    X = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_mrifeat/{subject}/{subject}_nsdgeneral_betas_tr.npy').astype('float32')
+    X_te = np.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
     X = torch.tensor(X)
     X_te=torch.tensor(X_te)
 
-    Y = torch.load(f'./imgfeat/{subject}_tr.pth')
-    Y_te = torch.load(f'./imgfeat/{subject}_te.pth')
+    Y = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_tr.pth')
+    Y_te = torch.load(f'/home/students/gzx_4090_1/StableDiffusionReconstruction-main/nsd_fsaverage/{subject}_te.pth')
     
 
     if percent<1.0:
@@ -188,7 +188,7 @@ def main(args):
 
         
     model = DFTBackbone(input_size=X.shape[-1], patch_size=patch_size, embed_dim=768, num_tokens=[512,256,128,257], depth=[2,10,2,4],
-        mlp_ratio=[4, 4, 4, 4], drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+        mlp_ratio=[4, 4, 4, 4], drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6), num_filters = 2)
 
     model.to(device)
 

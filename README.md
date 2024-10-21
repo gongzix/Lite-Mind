@@ -28,7 +28,7 @@ python src/train_litemind.py --device cuda:0 --patch-size 450 --batch-size 1000 
 ```
 ## Inference and Evaluation on the Test Set
 ```python
-python src/inference_litemind.py --device 0 --subject subj01 --model <your model path> 
+python src/inference_litemind.py --device 0 --subject subj01 --model <your model path>  --patch_size 450
 ```
 ![test_result](assets/test_result.png)
 

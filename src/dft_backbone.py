@@ -25,26 +25,37 @@ class Mlp(nn.Module):
         return x
 
 class GlobalFilter(nn.Module):
-    def __init__(self, embed_dim, N):
+    def __init__(self, embed_dim, N, num_filters=1):
         super().__init__()
-        self.complex_weight = nn.Parameter(torch.randn(N//2+1, embed_dim, 2, dtype=torch.float32) * 0.02)
+        self.num_filters = num_filters
+        self.complex_weight = nn.Parameter(torch.randn(num_filters, N//2+1, embed_dim, 2, dtype=torch.float32) * 0.02)
+    
+    def get_cosine_factor(m, M):
+        return torch.cos(
+            torch.tensor(((2*m - 1) * torch.pi) / (2*M))
+        ).item()
 
     def forward(self, x):
 
         x = x.to(torch.float32)
         x = torch.fft.rfft(x, dim=1, norm='ortho')
-        weight = torch.view_as_complex(self.complex_weight)
-        x = x * weight
+        power_spectrum = x**2
+        all_values = []
+        for filter_idx in range(self.num_filters):
+            weight = torch.view_as_complex(self.complex_weight[filter_idx])
+            y = x * weight * torch.cos(torch.tensor(((2*filter_idx + 1) * torch.pi) / (2 * self.num_filters)))* power_spectrum
+            all_values.append(y)
+        x = sum(all_values)
         x = torch.fft.irfft(x, dim=1, norm='ortho')
 
         return x
 
 class Block(nn.Module):
 
-    def __init__(self, input_size=300, embed_dim=128, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, number=844):
+    def __init__(self, input_size=300, embed_dim=128, mlp_ratio=4., drop=0., drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, number=844, num_filters = 1):
         super().__init__()
         self.norm1 = norm_layer(embed_dim)
-        self.filter = GlobalFilter(embed_dim, number)
+        self.filter = GlobalFilter(embed_dim, number, num_filters)
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(embed_dim)
         mlp_hidden_embed_dim = int(embed_dim * mlp_ratio)
@@ -88,11 +99,6 @@ class FreMLP(nn.Module):
         self.rb = nn.Parameter(self.scale * torch.randn(self.embed_dim))
         self.ib = nn.Parameter(self.scale * torch.randn(self.embed_dim))
 
-        self.fc = nn.Sequential(
-            nn.Linear(self.num_tokens * self.embed_dim, self.hidden_size),
-            nn.LeakyReLU(),
-            nn.Linear(self.hidden_size, self.num_tokens * self.embed_dim)
-        )
     def forward(self, x):
 
         B, nd, embed_dimension, _ = x.shape
@@ -126,12 +132,13 @@ class FreMLP(nn.Module):
 class DFTBackbone(nn.Module):
     
     def __init__(self, input_size=5917, patch_size=450, embed_dim =512, num_tokens=[512, 256, 128, 50], depth=[2,10,2,4],
-                 mlp_ratio=4., drop_rate=0., drop_path_rate=0., norm_layer=None, cls_only = False):
+                 mlp_ratio=4., drop_rate=0., drop_path_rate=0., norm_layer=None, cls_only = False, num_filters = 1):
                  
 
         super().__init__()
         self.embed_dim = embed_dim
         self.num_tokens = num_tokens  # num_features for consistency with other models
+        self.num_filters = num_filters
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.patch_embed = PatchEmbed(num_tokens=num_tokens[0], kernel_size=patch_size, stride=patch_size)
         self.number=((input_size-patch_size)//patch_size) + 1
@@ -157,7 +164,7 @@ class DFTBackbone(nn.Module):
             blk = nn.Sequential(*[
                 Block(
                 input_size=input_size, embed_dim=num_tokens[i], mlp_ratio=mlp_ratio[i],
-                drop=drop_rate, drop_path=dpr[cur + j], norm_layer=norm_layer, number=self.number)
+                drop=drop_rate, drop_path=dpr[cur + j], norm_layer=norm_layer, number=self.number, num_filters = self.num_filters)
             for j in range(depth[i])
             ])
 
@@ -202,4 +209,3 @@ class DFTBackbone(nn.Module):
         x = x.flatten(1)
 
         return x
-
