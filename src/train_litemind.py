@@ -34,6 +34,7 @@ class fMRIimageDataset(torch.utils.data.Dataset):
 
 
 def get_args_parser():
+    parser = argparse.ArgumentParser('DeiT training and evaluation script', add_help=False)
     parser.add_argument('--batch-size', default=64, type=int)
     parser.add_argument('--epochs', default=300, type=int)
 
@@ -186,11 +187,8 @@ def main(args):
 
 
         
-    model = DFTBackbone(input_size=X.shape[-1], patch_size=patch_size, features=768, embed_dim=[512,256,128,257], depth=[2,10,2,4],
-        mlp_ratio=[4, 4, 4, 4], representation_size=None, uniform_drop=False,
-        drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6), 
-        dropcls=0
-        )
+    model = DFTBackbone(input_size=X.shape[-1], patch_size=patch_size, embed_dim=768, num_tokens=[512,256,128,257], depth=[2,10,2,4],
+        mlp_ratio=[4, 4, 4, 4], drop_rate=args.drop_rate, drop_path_rate=args.drop_path_rate, norm_layer=partial(nn.LayerNorm, eps=1e-6))
 
     model.to(device)
 
@@ -249,10 +247,10 @@ def main(args):
 
         lr=train_stats['lr']
         loss=train_stats['loss']
-        log_stats = f'train_lr:{lr},train_loss:{loss:.5f},epoch:{epoch},n_parameters:{n_parameters},Top1:{test_stats1/982*100:.2f}%, epochmax:{max_epoch}'
+        log_stats = f'train_lr:{lr},train_loss:{loss:.5f},epoch:{epoch},n_parameters:{n_parameters},Top1:{test_stats/982*100:.2f}%, epochmax:{max_epoch}'
 
         if args.output_dir and utils.is_main_process():
-            with ("./log/{subject}_log.txt").open("a") as f:
+            with (output_dir / f"{subject}_log.txt").open("a") as f:
                 f.write(log_stats+ "\n")
 
     total_time = time.time() - start_time
