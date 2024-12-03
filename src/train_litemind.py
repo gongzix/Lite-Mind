@@ -144,8 +144,9 @@ def main(args):
     X = torch.tensor(X)
     X_te=torch.tensor(X_te)
 
-    Y = torch.load(f'./imgfeat/{subject}_tr.pth')
-    Y_te = torch.load(f'./imgfeat/{subject}_te.pth')
+    #image embeddings for training and testing
+    Y = torch.load(f'./imgfeat/image_clip_tr.pth')
+    Y_te = torch.load(f'./imgfeat/image_clip_te.pth')
     
 
     if percent<1.0:

@@ -182,8 +182,12 @@ def main():
     visual_tr=visual_tr.cpu().detach().numpy()
     visual_te=visual_te.cpu().detach().numpy()
 
-    np.save(f'{savedir}/image_clip_tr.npy',visual_tr)
-    np.save(f'{savedir}/image_clip_ave_te.npy',visual_te)
+    #np.save(f'{savedir}/image_clip_tr.npy',visual_tr)
+    #np.save(f'{savedir}/image_clip_ave_te.npy',visual_te)
+    visual_tr = torch.tensor(visual_tr)
+    visual_te = torch.tensor(visual_te)
+    torch.save(visual_tr, f'{savedir}/image_clip_tr.pth')
+    torch.save(visual_te, f'{savedir}/image_clip_te.pth')
   
 
 
