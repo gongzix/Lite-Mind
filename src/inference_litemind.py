@@ -46,7 +46,7 @@ def main():
 
     
     X_te = np.load(f'./mrifeat/{subject}/{subject}_nsdgeneral_betas_ave_te.npy').astype('float32')
-    Y_image = np.load(f'./imgfeat/{subject}_te.pth').astype("float32")
+    Y_image = np.load(f'./imgfeat/image_clip_te.pt').astype("float32")
 
     X_te=torch.tensor(X_te).to(device)
     Y_image=torch.tensor(Y_image).to(device)
